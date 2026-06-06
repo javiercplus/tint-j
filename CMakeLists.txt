@@ -365,6 +365,10 @@ if( WAYLAND_ENABLED )
     COMPILE_FLAGS "-include compat/compat_pre.h -Wall -Wno-pointer-sign -fno-strict-aliasing -pthread -std=gnu99" )
   set_target_properties( tint-wl PROPERTIES LINK_FLAGS "-pthread -Wl,--wrap=cairo_xlib_surface_create" )
 
+  # tint-wl is a standalone Wayland-only binary (not TINT2_FULL)
+  # It should only use the Wayland backend
+  target_compile_definitions( tint-wl PRIVATE ENABLE_WAYLAND )
+
   # Define ENABLE_BATTERY if enabled
   if( ENABLE_BATTERY )
     target_sources( tint-wl PRIVATE src/battery/battery.c )
