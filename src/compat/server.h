@@ -133,6 +133,10 @@ typedef struct CompatServer {
 	Colormap colormap;
 	Colormap colormap32;
 	GlobalAtom atom;
+#ifdef HAVE_SN
+	SnDisplay *sn_display;
+	GTree *pids;
+#endif
 } CompatServer;
 
 extern CompatServer server;
