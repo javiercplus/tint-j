@@ -73,8 +73,8 @@ void cleanup_timeout()
 			stop_multi_timeout(t);
 		if (t->self)
 			*t->self = NULL;
-		free(t);
 		timeout_list = g_slist_remove(timeout_list, t);
+		free(t);
 	}
 	if (multi_timeouts) {
 		g_hash_table_destroy(multi_timeouts);

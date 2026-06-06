@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="xdg_output_unstable_v1">
+  <copyright>
+    Copyright © 2017 Red Hat Inc.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="Protocol to describe output regions">
+    This protocol aims at describing outputs in a way which is more in
+    line with the concept of an output on desktop oriented systems.
+
+    Some information are more specific to the concept of an output for
+    a desktop oriented system and may not make sense in other
+    applications. It is not meant to replace the core wl_output events.
+
+    This protocol is meant to be used together with the core wl_output
+    protocol.
+
+    Warning! The protocol described in this file is experimental and
+    backward incompatible changes may be made. Backward compatible
+    changes may be added together with the corresponding interface
+    version bump.
+    Backward incompatible changes are done by bumping the version
+    number in the protocol and interface names and resetting the
+    interface version. Once the protocol is to be declared stable,
+    the 'z' prefix and the version number in the protocol and
+    interface names will be removed.
+  </description>
+
+  <interface name="zxdg_output_manager_v1" version="3">
+    <description summary="manage xdg_output objects">
+      A global factory interface for xdg_output objects.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the xdg_output_manager object">
+        Using this request a client can tell the server that it is not
+        going to use the xdg_output_manager object anymore.
+
+        Any objects already created through this instance are not affected.
+      </description>
+    </request>
+
+    <request name="get_xdg_output">
+      <description summary="create an xdg output from a wl_output">
+        This creates a new xdg_output object for the given wl_output.
+      </description>
+      <arg name="id" type="new_id" interface="zxdg_output_v1"/>
+      <arg name="output" type="object" interface="wl_output"/>
+    </request>
+  </interface>
+
+  <interface name="zxdg_output_v1" version="3">
+    <description summary="compositor logical output region">
+      An xdg_output describes part of the compositor geometry.
+
+      This typically corresponds to a monitor that displays part of the
+      compositor space.
+
+      For objects version 3 onwards, after all xdg_output properties have been
+      sent (when the object is created and when properties have changed), a
+      wl_output.done event is sent. This allows changes to the xdg_output
+      properties to be seen as atomic, even if they happen via multiple events.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the xdg_output object">
+        Using this request a client can tell the server that it is not
+        going to use the xdg_output object anymore.
+      </description>
+    </request>
+
+    <event name="logical_position">
+      <description summary="position of the output within the global compositor space">
+        The position event describes the location of the wl_output within
+        the global compositor space.
+      </description>
+      <arg name="x" type="int" summary="x position within the global compositor space"/>
+      <arg name="y" type="int" summary="y position within the global compositor space"/>
+    </event>
+
+    <event name="logical_size">
+      <description summary="size of the output in the global compositor space">
+        The logical_size event describes the size of the output in the
+        global compositor space.
+      </description>
+      <arg name="width" type="int" summary="width in global compositor space"/>
+      <arg name="height" type="int" summary="height in global compositor space"/>
+    </event>
+
+    <event name="done">
+      <description summary="all information about the output have been sent">
+        This event is sent after all other properties of an xdg_output
+        have been sent.
+
+        This allows changes to the xdg_output properties to be seen as
+        atomic, even if they happen via multiple events.
+
+        For objects version 3 onwards, this event is deprecated. Compositors
+        are not required to send it anymore and must send wl_output.done
+        instead.
+      </description>
+    </event>
+
+    <event name="name" since="2">
+      <description summary="name of this output">
+        Many compositors will assign user-friendly names to their outputs,
+        show them to the user, allow the user to refer to an output, etc. The
+        client may wish to know this name as well to offer the user similar
+        behaviors.
+
+        The name is a UTF-8 string with no convention defined for its
+        contents. Each name is unique among all wl_output globals. The name
+        is only guaranteed to be unique for the compositor instance.
+
+        The same output name is used for all clients (e.g. a console
+        background, lockscreen, panel, ...).
+
+        Names are guaranteed to not change on a given compositor instance.
+      </description>
+      <arg name="name" type="string" summary="output name"/>
+    </event>
+
+    <event name="description" since="2">
+      <description summary="human-readable description of this output">
+        Many compositors can produce human-readable descriptions for their
+        outputs. The client may wish to know this description as well, e.g.
+        for output selection purposes.
+
+        The description is a UTF-8 string with no convention defined for its
+        contents. The description is not guaranteed to be unique among all
+        wl_output globals. Examples might be 'Foocorp 11" Class 3' for a
+        LVDS panel or 'Virtual Output' for a virtual sink.
+
+        Descriptions are guaranteed to not change on a given compositor
+        instance.
+      </description>
+      <arg name="description" type="string" summary="output description"/>
+    </event>
+  </interface>
+</protocol>

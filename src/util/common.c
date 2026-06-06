@@ -38,7 +38,9 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <errno.h>
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
 #include <sys/sysctl.h>
+#endif
 #include <dirent.h>
 
 #ifdef HAVE_RSVG

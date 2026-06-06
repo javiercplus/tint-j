@@ -7,7 +7,7 @@ pkg_check_modules( GLIB2 REQUIRED glib-2.0 )
 pkg_check_modules( GOBJECT2 REQUIRED gobject-2.0 )
 pkg_check_modules( IMLIB2 REQUIRED imlib2 )
 pkg_check_modules( GTHREAD2 REQUIRED gthread-2.0 )
-pkg_check_modules( GTK2 REQUIRED gtk+-x11-2.0 )
+pkg_check_modules( GTK2 REQUIRED gtk+-2.0 )
 pkg_check_modules( RSVG librsvg-2.0>=2.36.0 )
 
 include_directories( ../util
@@ -54,7 +54,8 @@ target_link_libraries( tint2conf ${X11_T2C_LIBRARIES}
                                  ${IMLIB2_LIBRARIES}
                                  ${GTHREAD2_LIBRARIES}
                                  ${GTK2_LIBRARIES}
-                                 ${RSVG_LIBRARIES} )
+                                 ${RSVG_LIBRARIES}
+                                 m )
 
 if ( NOT DATADIR )
   set(DATADIR share)

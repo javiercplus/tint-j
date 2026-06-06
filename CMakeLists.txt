@@ -1,5 +1,9 @@
+cmake_minimum_required( VERSION 3.5 )
 project( tint2 )
-cmake_minimum_required( VERSION 2.6 )
+
+# Compat stubs for Wayland (target-specific, not global)
+# NOTE: Do NOT use include_directories(src/compat) globally
+# as it breaks tint2conf which needs real X11 headers.
 
 option( ENABLE_BATTERY "Enable battery status plugin" ON )
 option( ENABLE_TINT2CONF "Enable tint2conf build, a GTK+2 theme configurator for tint2" ON )
@@ -9,6 +13,7 @@ option( ENABLE_SN "Startup notification support" ON )
 option( ENABLE_ASAN "Build tint2 with AddressSanitizer" OFF )
 option( ENABLE_BACKTRACE "Dump a backtrace in case of fatal errors (e.g. X11 I/O error)" OFF )
 option( ENABLE_BACKTRACE_ON_SIGNAL "Dump a backtrace also when receiving signals such as SIGSEGV" OFF )
+option( ENABLE_WAYLAND "Enable Wayland backend support (requires wayland-client, wayland-protocols)" ON )
 if( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
   option( ENABLE_UEVENT "Kernel event handling support" ON )
 endif( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
@@ -16,7 +21,23 @@ endif( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 include( FindPkgConfig )
 include( CheckLibraryExists )
 include( CheckCSourceCompiles )
-pkg_check_modules( X11 REQUIRED x11 xcomposite xdamage xinerama xrender xrandr>=1.3 )
+
+# Wayland support
+if( ENABLE_WAYLAND )
+  pkg_check_modules( WAYLAND_CLIENT wayland-client )
+  pkg_check_modules( WAYLAND_PROTOCOLS wayland-protocols>=1.20 )
+  if( WAYLAND_CLIENT_FOUND )
+    add_definitions( -DENABLE_WAYLAND )
+    set( WAYLAND_ENABLED TRUE )
+  else()
+    set( WAYLAND_ENABLED FALSE )
+    message( STATUS "Wayland support not available (wayland-client not found)" )
+  endif()
+else()
+  set( WAYLAND_ENABLED FALSE )
+endif()
+
+pkg_check_modules( X11 REQUIRED x11 xcomposite xdamage xinerama xrender xrandr>=1.3 xext )
 pkg_check_modules( PANGOCAIRO REQUIRED pangocairo )
 pkg_check_modules( PANGO REQUIRED pango )
 pkg_check_modules( CAIRO REQUIRED cairo )
@@ -87,6 +108,9 @@ include_directories( ${PROJECT_BINARY_DIR}
                      src/util
 					 src/execplugin
                      src/freespace
+                     src/backend
+                     src/backend/x11
+                     src/backend/wayland
                      ${X11_INCLUDE_DIRS}
                      ${PANGOCAIRO_INCLUDE_DIRS}
                      ${PANGO_INCLUDE_DIRS}
@@ -96,6 +120,10 @@ include_directories( ${PROJECT_BINARY_DIR}
                      ${IMLIB2_INCLUDE_DIRS}
                      ${RSVG_INCLUDE_DIRS}
                      ${SN_INCLUDE_DIRS} )
+
+if( WAYLAND_ENABLED )
+  include_directories( ${WAYLAND_CLIENT_INCLUDE_DIRS} src/backend/protocols )
+endif()
 
 set( SOURCES src/config.c
              src/panel.c
@@ -118,7 +146,18 @@ set( SOURCES src/config.c
              src/util/common.c
              src/util/strnatcmp.c
              src/util/timer.c
-             src/util/window.c )
+             src/util/window.c
+             src/backend/backend.c
+             src/backend/x11/x11_backend.c )
+
+if( WAYLAND_ENABLED )
+  set( SOURCES ${SOURCES}
+       src/backend/wayland/wl_backend.c
+       src/backend/protocols/wlr-layer-shell-unstable-v1-protocol.c
+       src/backend/protocols/wlr-foreign-toplevel-management-unstable-v1-protocol.c
+       src/backend/protocols/xdg-output-unstable-v1-protocol.c
+       src/backend/protocols/xdg-shell-protocol.c )
+endif()
 
 if( ENABLE_BATTERY )
   set( SOURCES ${SOURCES} src/battery/battery.c)
@@ -233,9 +272,122 @@ endif( RT_LIBRARY )
 
 target_link_libraries( tint2 m )
 
+if( WAYLAND_ENABLED )
+  target_link_libraries( tint2 ${WAYLAND_CLIENT_LIBRARIES} )
+endif()
+
 add_dependencies( tint2 version )
 set_target_properties( tint2 PROPERTIES COMPILE_FLAGS "-Wall -Wpointer-arith -fno-strict-aliasing -pthread -std=c99 ${ASAN_C_FLAGS}" )
 set_target_properties( tint2 PROPERTIES LINK_FLAGS "-pthread -fno-strict-aliasing ${ASAN_L_FLAGS} ${BACKTRACE_L_FLAGS}" )
+target_compile_definitions( tint2 PRIVATE TINT2_FULL )
+
+# Wayland panel (full tint2 rendering engine)
+if( WAYLAND_ENABLED )
+  add_executable( tint-wl
+    # tint2 core
+    src/config.c
+    src/panel.c
+    src/tint-wl.c
+    src/clock/clock.c
+    src/launcher/launcher.c
+    src/launcher/apps-common.c
+    src/launcher/icon-theme-common.c
+    src/launcher/xsettings-client.c
+    src/launcher/xsettings-common.c
+    src/taskbar/task.c
+    src/taskbar/taskbar.c
+    src/taskbar/taskbarname.c
+    src/tooltip/tooltip.c
+    src/execplugin/execplugin.c
+    src/freespace/freespace.c
+    src/util/area.c
+    src/util/common.c
+    src/util/strnatcmp.c
+    src/util/timer.c
+    src/util/window.c
+        src/util/uevent.c
+        # Compat layer (replaces X11 calls → backend)
+    src/compat/compat.c
+    src/compat/server.c
+    # Backend
+    src/backend/backend.c
+    src/backend/wayland/wl_backend.c
+    src/backend/protocols/wlr-layer-shell-unstable-v1-protocol.c
+    src/backend/protocols/wlr-foreign-toplevel-management-unstable-v1-protocol.c
+    src/backend/protocols/xdg-output-unstable-v1-protocol.c
+    src/backend/protocols/xdg-shell-protocol.c )
+
+  # Include paths: compat stubs first (overrides real X11/Xlib.h)
+  target_include_directories( tint-wl BEFORE PRIVATE
+      src/compat     # Must come first for X11 stub interception
+    src
+    src/battery
+    src/clock
+    src/systray
+    src/taskbar
+    src/launcher
+    src/tooltip
+    src/util
+    src/execplugin
+    src/freespace
+    src/backend
+    src/backend/wayland
+    src/backend/protocols
+    ${WAYLAND_CLIENT_INCLUDE_DIRS}
+    ${CAIRO_INCLUDE_DIRS}
+    ${GLIB2_INCLUDE_DIRS}
+    ${GOBJECT2_INCLUDE_DIRS}
+    ${PANGOCAIRO_INCLUDE_DIRS}
+    ${PANGO_INCLUDE_DIRS}
+    ${IMLIB2_INCLUDE_DIRS}
+    ${RSVG_INCLUDE_DIRS} )
+
+  target_link_libraries( tint-wl
+    ${WAYLAND_CLIENT_LIBRARIES}
+    ${CAIRO_LIBRARIES}
+    ${PANGOCAIRO_LIBRARIES}
+    ${PANGO_LIBRARIES}
+    ${GLIB2_LIBRARIES}
+    ${GOBJECT2_LIBRARIES}
+    ${IMLIB2_LIBRARIES}
+    m )
+
+  if( ENABLE_RSVG AND RSVG_FOUND )
+    target_link_libraries( tint-wl ${RSVG_LIBRARIES} )
+    target_compile_definitions( tint-wl PRIVATE HAVE_RSVG )
+  endif()
+
+  if( RT_LIBRARY )
+    target_link_libraries( tint-wl ${RT_LIBRARY} )
+  endif()
+
+  set_target_properties( tint-wl PROPERTIES
+    COMPILE_FLAGS "-include compat/compat_pre.h -Wall -Wno-pointer-sign -fno-strict-aliasing -pthread -std=gnu99" )
+  set_target_properties( tint-wl PROPERTIES LINK_FLAGS "-pthread -Wl,--wrap=cairo_xlib_surface_create" )
+
+  # Define ENABLE_BATTERY if enabled
+  if( ENABLE_BATTERY )
+    target_sources( tint-wl PRIVATE src/battery/battery.c )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      target_sources( tint-wl PRIVATE src/battery/linux.c )
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+      target_sources( tint-wl PRIVATE src/battery/freebsd.c )
+    else()
+      target_sources( tint-wl PRIVATE src/battery/dummy.c )
+    endif()
+    target_compile_definitions( tint-wl PRIVATE ENABLE_BATTERY )
+  endif()
+
+  if( ENABLE_SN AND SN_FOUND )
+    target_compile_definitions( tint-wl PRIVATE HAVE_SN SN_API_NOT_YET_FROZEN )
+    target_include_directories( tint-wl PRIVATE ${SN_INCLUDE_DIRS} )
+    target_link_libraries( tint-wl ${SN_LIBRARIES} )
+  endif()
+
+  # Disable systray support for Wayland (uses X11 XEMBED protocol)
+  # Systray can be added later via SNI (StatusNotifierItem) D-Bus protocol
+  target_compile_definitions( tint-wl PRIVATE DISABLE_SYSTRAY )
+endif()
 
 install( TARGETS tint2 DESTINATION bin )
 install( FILES tint2.svg DESTINATION ${DATADIR}/icons/hicolor/scalable/apps )

@@ -13,6 +13,7 @@
 
 #include <pango/pangocairo.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #include "common.h"
 #include "clock.h"
@@ -27,7 +28,7 @@
 #include "battery.h"
 #endif
 
-extern int signal_pending;
+extern volatile sig_atomic_t signal_pending;
 // --------------------------------------------------
 // mouse events
 extern MouseAction mouse_left;
