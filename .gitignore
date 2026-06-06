@@ -1,18 +1,1 @@
-```
-# CMake build artifacts
-build-wl/
-CMakeCache.txt
-CMakeFiles/
-Makefile
-cmake_install.cmake
-
-# Compiled objects and binaries
-*.o
-*.obj
-*.bin
-*.out
-a.out
-
-# Generated executables
-tint-wl
-```
+Nothing needs to be added to .gitignore since only a README.md file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
